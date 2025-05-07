@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>PDF Slide Embedder</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 2rem;
+      background: #f4f4f4;
+    }
+    .container {
+      max-width: 700px;
+      margin: auto;
+      background: #fff;
+      padding: 2rem;
+      border-radius: 8px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+    h1 {
+      text-align: center;
+    }
+    label {
+      margin-top: 1rem;
+      display: block;
+    }
+    input, button {
+      width: 100%;
+      padding: 0.5rem;
+      margin-top: 0.3rem;
+    }
+    button {
+      background: #007BFF;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #0056b3;
+    }
+    #drop-zone {
+      margin-top: 1rem;
+      border: 2px dashed #ccc;
+      padding: 2rem;
+      text-align: center;
+      color: #888;
+      border-radius: 8px;
+    }
+    ul#file-list {
+      list-style: none;
+      padding: 0;
+      margin-top: 1rem;
+    }
+    ul#file-list li {
+      background: #eef;
+      padding: 0.5rem;
+      margin-bottom: 0.5rem;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      cursor: grab;
+    }
+    ul#file-list li.dragging {
+      opacity: 0.5;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Upload & Arrange PDF Slides</h1>
+    <form id="upload-form" method="POST" enctype="multipart/form-data">
+      <label for="pdfs">Select or Drag PDF Files:</label>
+      <input type="file" id="pdfs" accept="application/pdf" multiple hidden>
+      <div id="drop-zone">Drop PDF files here or click to select</div>
+      <p style="margin-top: 0.5rem; color: #555;">You can drag to reorder the uploaded files below:</p>
+      <ul id="file-list"></ul>
+
+      <label for="zoom">Zoom factor:</label>
+      <input type="number" step="0.1" name="zoom" id="zoom" value="1.0" min="0.1">
+
+      <label for="output_name">Output filename:</label>
+      <input type="text" name="output_name" id="output_name" value="output_notes.pdf">
+
+      <button type="submit">Generate PDF</button>
+    </form>
+  </div>
+
+  <script>
+    const dropZone = document.getElementById('drop-zone');
+    const fileInput = document.getElementById('pdfs');
+    const fileList = document.getElementById('file-list');
+    const form = document.getElementById('upload-form');
+
+    let filesArray = [];
+
+    dropZone.addEventListener('click', () => fileInput.click());
+
+    dropZone.addEventListener('dragover', e => {
+      e.preventDefault();
+      dropZone.style.background = '#e0e0e0';
+    });
+
+    dropZone.addEventListener('dragleave', () => {
+      dropZone.style.background = '';
+    });
+
+    dropZone.addEventListener('drop', e => {
+      e.preventDefault();
+      dropZone.style.background = '';
+      handleFiles(e.dataTransfer.files);
+    });
+
+    fileInput.addEventListener('change', () => {
+      handleFiles(fileInput.files);
+    });
+
+    function handleFiles(fileListObj) {
+      for (let file of fileListObj) {
+        if (file.type === 'application/pdf') {
+          filesArray.push(file);
+        }
+      }
+      renderFileList();
+    }
+
+    function renderFileList() {
+      fileList.innerHTML = '';
+      filesArray.forEach((file, index) => {
+        const li = document.createElement('li');
+        li.textContent = file.name;
+        li.draggable = true;
+        li.dataset.index = index;
+
+        li.addEventListener('dragstart', () => {
+          li.classList.add('dragging');
+        });
+
+        li.addEventListener('dragend', () => {
+          li.classList.remove('dragging');
+        });
+
+        li.addEventListener('dragover', e => {
+          e.preventDefault();
+          const draggingEl = fileList.querySelector('.dragging');
+          if (draggingEl && draggingEl !== li) {
+            const fromIndex = parseInt(draggingEl.dataset.index);
+            const toIndex = parseInt(li.dataset.index);
+            const [movedItem] = filesArray.splice(fromIndex, 1);
+            filesArray.splice(toIndex, 0, movedItem);
+            renderFileList();
+          }
+        });
+
+        fileList.appendChild(li);
+      });
+    }
+
+    form.addEventListener('submit', e => {
+      e.preventDefault();
+
+      const formData = new FormData();
+      filesArray.forEach(file => formData.append('pdfs', file));
+      formData.append('zoom', document.getElementById('zoom').value);
+      formData.append('output_name', document.getElementById('output_name').value);
+
+      fetch('/', {
+        method: 'POST',
+        body: formData
+      }).then(res => {
+        if (res.redirected) {
+          window.location.href = res.url;
+        } else {
+          alert('Something went wrong.');
+        }
+      });
+    });
+  </script>
+</body>
+</html>
